@@ -1,0 +1,44 @@
+# General language settings
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indentation and spacing
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+# Code structure
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+NamespaceIndentation: None
+AccessModifierOffset: -4
+BreakBeforeBraces: Attach
+
+# Break before binary operators to align conditions at start of lines
+BreakBeforeBinaryOperators: All
+AlignOperands: Align
+
+# Pointer and Reference Formatting
+PointerAlignment: Right
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Includes
+SortIncludes: true
+
+# Comment formatting
+AlignTrailingComments: true
+ReflowComments: true
+
+# Misc
+MaxEmptyLinesToKeep: 1
+SortUsingDeclarations: true
