@@ -30,6 +30,10 @@ bool Tintin_reporter::isValid(void) {
     return this->_isValid;
 }
 
+void Tintin_reporter::debug(const std::string &msg) {
+    this->_log(LogLevel::DEBUG, msg);
+};
+
 void Tintin_reporter::log(const std::string &msg) {
     this->_log(LogLevel::LOG, msg);
 };
@@ -54,15 +58,24 @@ const std::string Tintin_reporter::getTimestamp() {
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
 
+    struct tm time_info;
+    localtime_r(&time_t_now, &time_info);
+
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&time_t_now), "%d/%m/%Y %H:%M:%S");
+    ss << std::put_time(&time_info, "%d/%m/%Y %H:%M:%S");
     return ss.str();
 }
 
 void Tintin_reporter::_log(LogLevel level, const std::string &msg) {
-    std::string levelStr;
+    const char *levelStr;
 
     switch (level) {
+    case LogLevel::DEBUG:
+        levelStr = "DEBUG";
+        break;
+    case LogLevel::LOG:
+        levelStr = "LOG";
+        break;
     case LogLevel::NOTICE:
         levelStr = "NOTICE";
         break;
@@ -79,5 +92,4 @@ void Tintin_reporter::_log(LogLevel level, const std::string &msg) {
 
     this->logfile << "[" << this->getTimestamp() << "] "
                   << "[" << levelStr << "] " << this->LOG_PREFIX << " " << msg << std::endl;
-    this->logfile.flush();
 }

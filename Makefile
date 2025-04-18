@@ -1,10 +1,10 @@
 CC = c++
-CFLAGS = -Wall -Wextra -Werror -std=c++20 #-fsanitize=address -g -D DEBUG=1
+CFLAGS = -Wall -Wextra -Werror -std=c++20 -g -D _DEBUG=1 # -fsanitize=address
 RM = rm -rf
 
 NAME = MattDaemon
 
-SRCS = Tintin_reporter.cpp main.cpp
+SRCS = Client.cpp Tintin_reporter.cpp main.cpp
 
 OBJ_DIR = obj
 OBJS = $(SRCS:%.cpp=$(OBJ_DIR)/%.o)
@@ -34,7 +34,7 @@ re: fclean all
 fmt:
 	clang-format -i src/*.cpp src/*.hpp
 
-run: all
+run: re
 	sudo ./$(NAME)
 
 # sudo valgrind --leak-check=full \

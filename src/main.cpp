@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -6,7 +7,9 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <string>
+#include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -14,16 +17,16 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
 
+#include "Client.hpp"
 #include "Tintin_reporter.hpp"
 
 namespace fs = std::filesystem;
 
 static constexpr int ROOT_UID = 0;
-static constexpr uint8_t PORT = (uint8_t)4242;
+static constexpr uint16_t PORT = (uint16_t)4242;
 static constexpr const int MAX_CLIENTS = 3;
+static constexpr const int MAX_EVENTS = 10;
 static constexpr const char *PIDFILE_PATH = "/var/run/matt_daemon.pid";
 static constexpr const char *LOCKFILE_PATH = "/var/lock/matt_daemon.lock";
 static constexpr const char *LOGFILE_DIR_PATH = "/var/log/matt_daemon/";
@@ -183,14 +186,19 @@ int ft_daemon(int nochdir, int noclose) {
     return 0;
 }
 
+// TODO
+// - Handle various clients simultaneously;
+// - Keep track of the connected clients in a std::<set> and close their
+// socket fds upon shutdown;
+// - Reject more than 3 simultaneous connected clients;
+// - Close the connection with the clients after their full message is received;
+// - Review the repetitive close of socket fd and removal of pid + lock files;
+// - Review how the error messages are being created i.e. the need to create
+// a std::string to concatenate with strerror().
+
 int main(void) {
     if (geteuid() != ROOT_UID) {
         std::cerr << "matt-daemon: fatal: root privileges needed\n";
-        return EXIT_FAILURE;
-    }
-
-    if (!fs::exists(LOGFILE_DIR_PATH) && !fs::create_directory(LOGFILE_DIR_PATH)) {
-        std::cerr << "matt-daemon: fatal: failed to create logfile directory\n";
         return EXIT_FAILURE;
     }
 
@@ -205,16 +213,24 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
+    if (!fs::exists(LOGFILE_DIR_PATH) && !fs::create_directory(LOGFILE_DIR_PATH)) {
+        std::cerr << "matt-daemon: fatal: failed to create logfile directory\n";
+        fs::remove(LOCKFILE_PATH);
+        return EXIT_FAILURE;
+    }
+
     Tintin_reporter logger(LOGFILE_PATH);
     if (!logger.isValid()) {
         std::cerr << "matt-daemon: fatal: failed to open logfile\n";
+        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
 
     /* // Daemonize
     if (ft_daemon(0, 0) == -1) {
-        // TODO handle error
-        std::cerr << "matt-daemon: fatal: failed to daemonize\n";
+        logger.fatal("failed to daemonize");
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     } */
 
@@ -233,11 +249,27 @@ int main(void) {
         || signal(SIGTTOU, SIG_IGN) == SIG_ERR
         || signal(SIGTTIN, SIG_IGN) == SIG_ERR
     ) {
-        std::cerr << "matt-daemon: fatal: failed to setup signal handlers\n";
+        logger.fatal("failed to setup signal handlers");
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
 
+    #ifdef _DEBUG
+        std::cout << "Creating server's socket..." << std::endl;
+    #endif
+
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socketfd == -1) {
+        logger.fatal(std::string("failed to create server's socket: socket() failed: ") + strerror(errno));
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
+        return EXIT_FAILURE;
+    }
+
+    #ifdef _DEBUG
+        std::cout << "Binding socket to port " << std::to_string(PORT) << "..." << std::endl;
+    #endif
 
     sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
@@ -245,48 +277,150 @@ int main(void) {
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(socketfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1) {
-        logger.fatal("failed to bind to port " + std::to_string(PORT) + ": " + strerror(errno));
+        logger.fatal(std::string("failed to bind to port ") + std::to_string(PORT) + ": " + strerror(errno));
+        close(socketfd);
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
+
+    #ifdef _DEBUG
+        std::cout << "Setting server's socket to listen..." << std::endl;
+    #endif
 
     if (listen(socketfd, MAX_CLIENTS) == -1) {
-        logger.fatal("failed to listen on port " + std::to_string(PORT) + ": " + strerror(errno));
+        logger.fatal(std::string("failed to listen on port ") + std::to_string(PORT) + ": " + strerror(errno));
+        close(socketfd);
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
 
-    // TODO implement client handling - use epoll()?
+    #ifdef _DEBUG
+        std::cout << "Creating epollfd..." << std::endl;
+    #endif
+
+    int epollfd = epoll_create1(0);
+    if (epollfd == -1) {
+        logger.fatal(std::string("failed to create epoll: epoll_create1() failed: ") + strerror(errno));
+        close(socketfd);
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
+        return EXIT_FAILURE;
+    }
+
+    #ifdef _DEBUG
+        std::cout << "Adding server's socket to polled fds..." << std::endl;
+    #endif
+
+    struct epoll_event ev;
+    struct epoll_event events[MAX_EVENTS];
+    
+    ev.events = EPOLLIN;
+    ev.data.fd = socketfd;
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, socketfd, &ev) == -1) {
+        logger.fatal(std::string("failed to add server's socket fd to polled fds: epoll_ctl() failed: ") + strerror(errno));
+        close(socketfd);
+        close(epollfd);
+        fs::remove(PIDFILE_PATH);
+        fs::remove(LOCKFILE_PATH);
+        return EXIT_FAILURE;
+    }
+
+    // std::set<Client> clients;
 
     while (g_run) {
-        int clientSocketFd = accept(socketfd, nullptr, nullptr);
-        if (clientSocketFd == -1) {
-            // TODO handle error
+        int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
+        if (nfds == -1 && errno != EINTR) {
+            // TODO review this
+            logger.error(std::string("failed to wait for events on polled fds: epoll_wait() failed: ") + strerror(errno));
+            close(socketfd);
+            close(epollfd);
+            fs::remove(PIDFILE_PATH);
+            fs::remove(LOCKFILE_PATH);
+            return EXIT_FAILURE;
         }
 
-        // recieving data
-        char buffer[1024] = { 0 };
-        ssize_t rd = recv(clientSocketFd, buffer, sizeof(buffer), MSG_DONTWAIT);
-        if (rd == -1) {
-            // TODO handle error
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // TODO
+        for (int n = 0; n < nfds; n++) {
+            if (events[n].data.fd == socketfd) {
+                // If event is on server's socket fd, accept new client
+
+                // TODO reject more than 3 clients
+
+                int clientSocketFd = accept(socketfd, nullptr, nullptr);
+                if (clientSocketFd == -1) {
+                    // TODO review this
+                    logger.error(std::string("failed to accept client: accept() failed: ") + strerror(errno));
+                    continue;
+                }
+
+                // Set client socket as non-blocking
+                int flags = fcntl(clientSocketFd, F_GETFL, 0);
+                if (flags == -1) {
+                    // TODO review this
+                    logger.error(std::string("failed to get client's socket options: fcntl() failed: ") + strerror(errno));
+                    close(clientSocketFd);
+                    continue;
+                }
+                if (fcntl(clientSocketFd, F_SETFL, flags | O_NONBLOCK) == -1) {
+                    // TODO review this
+                    logger.error(std::string("failed to set client's socket as non-blocking: fcntl() failed: ") + strerror(errno));
+                    close(clientSocketFd);
+                    continue;
+                }
+
+                ev.events = EPOLLIN | EPOLLET;
+                ev.data.fd = clientSocketFd;
+                // Add new client's socket to the polled fds
+                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, clientSocketFd, &ev) == -1) {
+                    // TODO review this
+                    logger.error(std::string("failed to add client's socket to polled fds: epoll_ctl() failed: ") + strerror(errno));
+                    close(clientSocketFd);
+                }
+
+                // client = new Client(clientSocketFd);
+                // clients.insert(client);
+
+                #ifdef _DEBUG
+                    std::cout << "New client registered!" << std::endl;
+                #endif
+            } else {
+                // One of the polled fds has data to be read
+                char buf[1024] = { 0 };
+                ssize_t rd = recv(events[n].data.fd, buf, sizeof(buf), MSG_DONTWAIT);
+                if (rd == -1) {
+                    // TODO handle error
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        // TODO
+                    }
+                    continue;
+                } else if (rd == 0) {
+                    logger.info("peer has shutdown the connection");
+                    continue;
+                }
+
+                std::string msg(buf);
+                if (!msg.empty() && msg.back() == '\n') {
+                    // Delete newline from msg
+                    msg.pop_back();
+                } 
+
+                if (msg == "quit") {
+                    logger.info("received quit request");
+                    g_run = 0;
+                } else {
+                    logger.log(std::string("received message: ") + msg);
+                }
             }
-            continue;
-        } else if (rd == 0) {
-            logger.info("peer has shutdown the connection");
-            continue;
-        }
-
-        if (buffer == "quit") {
-            logger.info("received quit requested");
-            g_run = 0;
-        } else {
-            logger.log("received message: " + buffer);
         }
     }
 
     logger.info("quitting");
 
+    close(epollfd);
     close(socketfd);
+    // TODO for client in clients, close socketfd
+
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
     return EXIT_SUCCESS;
