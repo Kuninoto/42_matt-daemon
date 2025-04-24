@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <vector>
 
 #include "Client.hpp"
 #include "Tintin_reporter.hpp"
@@ -327,7 +328,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // std::set<Client> clients;
+    std::vector<Client> clients;
 
     while (g_run) {
         int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
@@ -344,13 +345,16 @@ int main(void) {
         for (int n = 0; n < nfds; n++) {
             if (events[n].data.fd == socketfd) {
                 // If event is on server's socket fd, accept new client
-
-                // TODO reject more than 3 clients
-
                 int clientSocketFd = accept(socketfd, nullptr, nullptr);
                 if (clientSocketFd == -1) {
                     // TODO review this
                     logger.error(std::string("failed to accept client: accept() failed: ") + strerror(errno));
+                    continue;
+                }
+
+                if (clients.size() == 3) {
+                    close(clientSocketFd);
+                    logger.notice("rejected client due to connections limit");
                     continue;
                 }
 
@@ -369,7 +373,7 @@ int main(void) {
                     continue;
                 }
 
-                ev.events = EPOLLIN | EPOLLET;
+                ev.events = EPOLLIN;
                 ev.data.fd = clientSocketFd;
                 // Add new client's socket to the polled fds
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, clientSocketFd, &ev) == -1) {
@@ -378,13 +382,23 @@ int main(void) {
                     close(clientSocketFd);
                 }
 
-                // client = new Client(clientSocketFd);
-                // clients.insert(client);
+                clients.push_back(Client(clientSocketFd));
 
                 #ifdef _DEBUG
                     std::cout << "New client registered!" << std::endl;
                 #endif
             } else {
+                std::vector<Client>::iterator clientRef;
+                for (auto it = clients.begin(); it != clients.end(); ++it) {
+                    std::cout << "in iterator" << std::endl;
+                    if (it->socketfd == events[n].data.fd) {
+                        clientRef = it;
+                        break;
+                    }
+                }
+
+                std::cout << "client: " << clientRef->socketfd << std::endl;
+
                 // One of the polled fds has data to be read
                 char buf[1024] = { 0 };
                 ssize_t rd = recv(events[n].data.fd, buf, sizeof(buf), MSG_DONTWAIT);
@@ -396,20 +410,30 @@ int main(void) {
                     continue;
                 } else if (rd == 0) {
                     logger.info("peer has shutdown the connection");
+                    if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, &ev) == -1) {
+                        logger.error(std::string("failed to remove client socket from epoll interest list: epoll_ctl() failed: ") + strerror(errno));
+                    }
+                    clients.erase(clientRef);
+                    close(events[n].data.fd);
                     continue;
                 }
 
                 std::string msg(buf);
-                if (!msg.empty() && msg.back() == '\n') {
-                    // Delete newline from msg
-                    msg.pop_back();
-                } 
-
-                if (msg == "quit") {
+                std::cout << msg << std::endl;
+                if (msg == "quit\n") {
                     logger.info("received quit request");
                     g_run = 0;
                 } else {
-                    logger.log(std::string("received message: ") + msg);
+                    clientRef->msg.append(msg);
+    
+                    std::cout << "1111111111111" << std::endl;
+                    if (!clientRef->msg.empty() && clientRef->msg.back() == '\n') {
+                        // Delete newline from msg
+                        std::cout << "22222222" << std::endl;
+                        clientRef->msg.pop_back();
+                        logger.log(std::string("received message: ") + clientRef->msg);
+                        clientRef->msg.clear();
+                    }
                 }
             }
         }
