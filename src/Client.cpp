@@ -1,4 +1,6 @@
+#include <unistd.h>
 #include <string>
+#include <ostream>
 
 #include "Client.hpp"
 
@@ -7,14 +9,26 @@ Client::Client(int socketfd) {
 }
 
 Client::Client(const Client &to_copy) {
-    // TODO
-    (void)to_copy;
+    if (this != &to_copy) {
+        *this = to_copy;
+    }
 };
 
 Client &Client::operator=(const Client &to_copy) {
-    // TODO
-    (void)to_copy;
+    if (this != &to_copy) {
+        this->socketfd = to_copy.socketfd;
+        this->msg = to_copy.msg;
+    }
     return *this;
 };
 
-Client::~Client(void){};
+Client::~Client(void) {
+    // TODO here
+    close(this->socketfd);
+};
+
+std::ostream &operator<<(std::ostream &stream, const Client &client) {
+	stream << "socketfd=" << client.socketfd << "\n"
+           << "msg=" << client.msg;
+	return stream;
+}

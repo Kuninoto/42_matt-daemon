@@ -330,6 +330,9 @@ int main(void) {
 
     std::vector<Client> clients;
 
+    #ifdef _DEBUG
+        std::cout << "Starting main loop..." << std::endl;
+    #endif
     while (g_run) {
         int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
         if (nfds == -1 && errno != EINTR) {
@@ -344,6 +347,10 @@ int main(void) {
 
         for (int n = 0; n < nfds; n++) {
             if (events[n].data.fd == socketfd) {
+                #ifdef _DEBUG
+                    std::cout << "Received event on server's socket..." << std::endl;
+                #endif
+
                 // If event is on server's socket fd, accept new client
                 int clientSocketFd = accept(socketfd, nullptr, nullptr);
                 if (clientSocketFd == -1) {
@@ -378,31 +385,51 @@ int main(void) {
                 // Add new client's socket to the polled fds
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, clientSocketFd, &ev) == -1) {
                     // TODO review this
-                    logger.error(std::string("failed to add client's socket to polled fds: epoll_ctl() failed: ") + strerror(errno));
+                    logger.error(std::string("failed to add client's socket to epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
                     close(clientSocketFd);
+                    continue;
                 }
 
                 clients.push_back(Client(clientSocketFd));
 
                 #ifdef _DEBUG
-                    std::cout << "New client registered!" << std::endl;
+                    std::cout << "New client registered, socketfd=" << clients.back().socketfd << std::endl;
                 #endif
             } else {
-                std::vector<Client>::iterator clientRef;
+                // One of the polled fds has data to be read
+                #ifdef _DEBUG
+                    std::cout << "One of the polled fds has data to be read..." << std::endl;
+                #endif
+
+                std::vector<Client>::iterator clientIt = clients.end();
                 for (auto it = clients.begin(); it != clients.end(); ++it) {
-                    std::cout << "in iterator" << std::endl;
                     if (it->socketfd == events[n].data.fd) {
-                        clientRef = it;
+                        // TODO here - somehow this causes the client to be deleted
+                        // could be because it creates copies for the loop
+                        // and we then try to use it outside
+                        // but the socketfd is the same, that's why
+                        // having the close on the destructor
+                        // closes the socket
+                        clientIt = it;
                         break;
                     }
                 }
 
-                std::cout << "client: " << clientRef->socketfd << std::endl;
+                // If client not found, skip this event
+                if (clientIt == clients.end()) {
+                    std::cout << "Warning: Event for unknown client, fd=" << events[n].data.fd << std::endl;
+                    /* // Remove from epoll and close it
+                    if (epoll_ctl(epollfd, EPOLL_CTL_DEL, clientFd, &ev) == -1) {
+                        std::cout << "Failed to remove unknown fd from epoll" << std::endl;
+                    }
+                    close(clientFd); */
+                    continue;
+                }
 
-                // One of the polled fds has data to be read
                 char buf[1024] = { 0 };
                 ssize_t rd = recv(events[n].data.fd, buf, sizeof(buf), MSG_DONTWAIT);
                 if (rd == -1) {
+                    std::cout << "recv == -1" << std::endl;
                     // TODO handle error
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
                         // TODO
@@ -411,28 +438,24 @@ int main(void) {
                 } else if (rd == 0) {
                     logger.info("peer has shutdown the connection");
                     if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, &ev) == -1) {
-                        logger.error(std::string("failed to remove client socket from epoll interest list: epoll_ctl() failed: ") + strerror(errno));
+                        logger.error(std::string("failed to remove client socket from epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
                     }
-                    clients.erase(clientRef);
-                    close(events[n].data.fd);
+                    clients.erase(clientIt);
                     continue;
                 }
 
                 std::string msg(buf);
-                std::cout << msg << std::endl;
                 if (msg == "quit\n") {
                     logger.info("received quit request");
                     g_run = 0;
                 } else {
-                    clientRef->msg.append(msg);
+                    clientIt->msg.append(msg);
     
-                    std::cout << "1111111111111" << std::endl;
-                    if (!clientRef->msg.empty() && clientRef->msg.back() == '\n') {
-                        // Delete newline from msg
-                        std::cout << "22222222" << std::endl;
-                        clientRef->msg.pop_back();
-                        logger.log(std::string("received message: ") + clientRef->msg);
-                        clientRef->msg.clear();
+                    if (!clientIt->msg.empty() && clientIt->msg.back() == '\n') {
+                        // Delete newline and log msg
+                        clientIt->msg.pop_back();
+                        logger.log(std::string("received message: ") + clientIt->msg);
+                        clientIt->msg.clear();
                     }
                 }
             }
@@ -443,7 +466,6 @@ int main(void) {
 
     close(epollfd);
     close(socketfd);
-    // TODO for client in clients, close socketfd
 
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
