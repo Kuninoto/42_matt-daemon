@@ -3,7 +3,7 @@
 #include <fstream>
 #include <string>
 
-enum class LogLevel { DEBUG, LOG, NOTICE, INFO, ERROR, FATAL };
+enum class LogLevel { DEBUG, LOG, NOTICE, INFO, WARN, ERROR, FATAL };
 
 class Tintin_reporter {
     static constexpr const char *LOG_PREFIX = "matt-daemon:";
@@ -25,6 +25,7 @@ public:
     void log(const std::string &msg);
     void notice(const std::string &msg);
     void info(const std::string &msg);
+    void warn(const std::string &msg);
     void error(const std::string &msg);
     void fatal(const std::string &msg);
 };

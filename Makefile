@@ -37,11 +37,8 @@ fmt:
 run: re
 	sudo ./$(NAME)
 
-# sudo valgrind --leak-check=full \
-	--show-leak-kinds=all \
-	--track-origins=yes \
-	--track-fds=yes \
-	-s 
+noleaks: re
+	sudo valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes -s ./$(NAME) 
 
 .PHONY: all $(NAME) $(OBJ_DIR) clean fclean re fmt run
 

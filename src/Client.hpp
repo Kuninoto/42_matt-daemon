@@ -12,3 +12,5 @@ public:
     int socketfd;
     std::string msg;
 };
+
+std::ostream &operator<<(std::ostream &stream, const Client &client);
