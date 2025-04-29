@@ -33,6 +33,9 @@ static constexpr const char *LOCKFILE_PATH = "/var/lock/matt_daemon.lock";
 static constexpr const char *LOGFILE_DIR_PATH = "/var/log/matt_daemon/";
 static constexpr const char *LOGFILE_PATH = "/var/log/matt_daemon/matt_daemon.log";
 
+static constexpr int RECV_BUFFER_SIZE = 1024;
+static constexpr const char *ACK_MSG = "ACK\n";
+
 volatile sig_atomic_t g_run = 1; // Global variable to control the main loop
 
 /**
@@ -188,11 +191,6 @@ int ft_daemon(int nochdir, int noclose) {
 }
 
 // TODO
-// - Handle various clients simultaneously;
-// - Keep track of the connected clients in a std::<set> and close their
-// socket fds upon shutdown;
-// - Reject more than 3 simultaneous connected clients;
-// - Close the connection with the clients after their full message is received;
 // - Review the repetitive close of socket fd and removal of pid + lock files;
 // - Review how the error messages are being created i.e. the need to create
 // a std::string to concatenate with strerror().
@@ -328,7 +326,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    std::vector<Client> clients;
+    std::vector<Client*> clients;
 
     #ifdef _DEBUG
         std::cout << "Starting main loop..." << std::endl;
@@ -390,10 +388,11 @@ int main(void) {
                     continue;
                 }
 
-                clients.push_back(Client(clientSocketFd));
+                Client *client = new Client(clientSocketFd);
+                clients.push_back(client);
 
                 #ifdef _DEBUG
-                    std::cout << "New client registered, socketfd=" << clients.back().socketfd << std::endl;
+                    std::cout << "New client registered, socketfd=" << clients.back()->socketfd << std::endl;
                 #endif
             } else {
                 // One of the polled fds has data to be read
@@ -401,15 +400,9 @@ int main(void) {
                     std::cout << "One of the polled fds has data to be read..." << std::endl;
                 #endif
 
-                std::vector<Client>::iterator clientIt = clients.end();
+                std::vector<Client*>::iterator clientIt = clients.end();
                 for (auto it = clients.begin(); it != clients.end(); ++it) {
-                    if (it->socketfd == events[n].data.fd) {
-                        // TODO here - somehow this causes the client to be deleted
-                        // could be because it creates copies for the loop
-                        // and we then try to use it outside
-                        // but the socketfd is the same, that's why
-                        // having the close on the destructor
-                        // closes the socket
+                    if ((*it)->socketfd == events[n].data.fd) {
                         clientIt = it;
                         break;
                     }
@@ -426,7 +419,7 @@ int main(void) {
                     continue;
                 }
 
-                char buf[1024] = { 0 };
+                char buf[RECV_BUFFER_SIZE] = { 0 };
                 ssize_t rd = recv(events[n].data.fd, buf, sizeof(buf), MSG_DONTWAIT);
                 if (rd == -1) {
                     std::cout << "recv == -1" << std::endl;
@@ -440,6 +433,8 @@ int main(void) {
                     if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, &ev) == -1) {
                         logger.error(std::string("failed to remove client socket from epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
                     }
+
+                    delete *clientIt;
                     clients.erase(clientIt);
                     continue;
                 }
@@ -449,13 +444,16 @@ int main(void) {
                     logger.info("received quit request");
                     g_run = 0;
                 } else {
-                    clientIt->msg.append(msg);
-    
-                    if (!clientIt->msg.empty() && clientIt->msg.back() == '\n') {
+                    (*clientIt)->msg.append(msg);
+
+                    if (!(*clientIt)->msg.empty() && (*clientIt)->msg.back() == '\n') {
                         // Delete newline and log msg
-                        clientIt->msg.pop_back();
-                        logger.log(std::string("received message: ") + clientIt->msg);
-                        clientIt->msg.clear();
+                        (*clientIt)->msg.pop_back();
+                        logger.log(std::string("received message: ") + (*clientIt)->msg);
+                        (*clientIt)->msg.clear();
+                        if (send(events[n].data.fd, ACK_MSG, sizeof(ACK_MSG), MSG_DONTWAIT) == -1) {
+                            logger.warn(std::string("send() failed: ") + strerror(errno));
+                        }
                     }
                 }
             }
@@ -463,9 +461,15 @@ int main(void) {
     }
 
     logger.info("quitting");
+   
+    // Send FIN to clients and delete them from the vector
+    for (auto it = clients.begin(); it != clients.end(); ++it) {
+        close((*it)->socketfd);
+        delete *it;
+    }
 
-    close(epollfd);
     close(socketfd);
+    close(epollfd);
 
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);

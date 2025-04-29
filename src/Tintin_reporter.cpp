@@ -62,7 +62,7 @@ void Tintin_reporter::notice(const std::string &msg) {
 };
 
 /**
- * Info level logs
+ * Info level logs.
  *
  * @param msg The message to log.
  */
@@ -71,7 +71,16 @@ void Tintin_reporter::info(const std::string &msg) {
 };
 
 /**
- * Error level logs
+ * Warn level logs.
+ *
+ * @param msg The message to log.
+ */
+void Tintin_reporter::warn(const std::string &msg) {
+    this->_log(LogLevel::WARN, msg);
+};
+
+/**
+ * Error level logs.
  *
  * @param msg The message to log.
  */
@@ -129,6 +138,9 @@ void Tintin_reporter::_log(LogLevel level, const std::string &msg) {
         break;
     case LogLevel::INFO:
         levelStr = "INFO";
+        break;
+    case LogLevel::WARN:
+        levelStr = "WARN";
         break;
     case LogLevel::ERROR:
         levelStr = "ERROR";

@@ -2,6 +2,8 @@
 #include <string>
 #include <ostream>
 
+#include <iostream>
+
 #include "Client.hpp"
 
 Client::Client(int socketfd) {
@@ -23,7 +25,6 @@ Client &Client::operator=(const Client &to_copy) {
 };
 
 Client::~Client(void) {
-    // TODO here
     close(this->socketfd);
 };
 
