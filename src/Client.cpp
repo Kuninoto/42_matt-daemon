@@ -6,29 +6,29 @@
 
 #include "Client.hpp"
 
-Client::Client(int socketfd) {
+Client::Client(int socketfd) noexcept {
     this->socketfd = socketfd;
 }
 
-Client::Client(const Client &to_copy) {
-    if (this != &to_copy) {
-        *this = to_copy;
+Client::Client(const Client &toCopy) noexcept {
+    if (this != &toCopy) {
+        *this = toCopy;
     }
 };
 
-Client &Client::operator=(const Client &to_copy) {
-    if (this != &to_copy) {
-        this->socketfd = to_copy.socketfd;
-        this->msg = to_copy.msg;
+Client &Client::operator=(const Client &toCopy) noexcept {
+    if (this != &toCopy) {
+        this->socketfd = toCopy.socketfd;
+        this->msg = toCopy.msg;
     }
     return *this;
 };
 
-Client::~Client(void) {
+Client::~Client(void) noexcept {
     close(this->socketfd);
 };
 
-std::ostream &operator<<(std::ostream &stream, const Client &client) {
+std::ostream &operator<<(std::ostream &stream, const Client &client) noexcept {
 	stream << "socketfd=" << client.socketfd << "\n"
            << "msg=" << client.msg;
 	return stream;

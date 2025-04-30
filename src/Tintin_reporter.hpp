@@ -10,22 +10,22 @@ class Tintin_reporter {
     std::ofstream logfile;
     bool _isValid;
 
-    void _log(LogLevel level, const std::string &msg);
-    const std::string getTimestamp();
+    void _log(LogLevel level, const std::string &msg) noexcept;
+    const std::string getTimestamp() noexcept;
 
 public:
-    Tintin_reporter(const std::string &logfilePath);
-    Tintin_reporter(const Tintin_reporter &to_copy);
-    Tintin_reporter &operator=(const Tintin_reporter &to_copy);
-    ~Tintin_reporter(void);
+    Tintin_reporter(const std::string &logfilePath) noexcept;
+    Tintin_reporter(const Tintin_reporter &toCopy) noexcept;
+    Tintin_reporter &operator=(const Tintin_reporter &toCopy) noexcept;
+    ~Tintin_reporter(void) noexcept;
 
-    bool isValid(void);
+    bool isValid(void) noexcept;
 
-    void debug(const std::string &msg);
-    void log(const std::string &msg);
-    void notice(const std::string &msg);
-    void info(const std::string &msg);
-    void warn(const std::string &msg);
-    void error(const std::string &msg);
-    void fatal(const std::string &msg);
+    void debug(const std::string &msg) noexcept;
+    void log(const std::string &msg) noexcept;
+    void notice(const std::string &msg) noexcept;
+    void info(const std::string &msg) noexcept;
+    void warn(const std::string &msg) noexcept;
+    void error(const std::string &msg) noexcept;
+    void fatal(const std::string &msg) noexcept;
 };

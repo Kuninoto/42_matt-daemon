@@ -4,13 +4,13 @@
 
 class Client {
 public:
-    Client(int socketfd);
-    Client(const Client &to_copy);
-    Client &operator=(const Client &to_copy);
-    ~Client(void);
+    Client(int socketfd) noexcept;
+    Client(const Client &toCopy) noexcept;
+    Client &operator=(const Client &toCopy) noexcept;
+    ~Client(void) noexcept;
 
     int socketfd;
     std::string msg;
 };
 
-std::ostream &operator<<(std::ostream &stream, const Client &client);
+std::ostream &operator<<(std::ostream &stream, const Client &client) noexcept;
