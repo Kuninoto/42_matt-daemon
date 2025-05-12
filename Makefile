@@ -4,7 +4,7 @@ RM = rm -rf
 
 NAME = MattDaemon
 
-SRCS = Client.cpp signal.cpp Tintin_reporter.cpp main.cpp
+SRCS = Client.cpp Server.cpp signal.cpp Tintin_reporter.cpp main.cpp
 
 OBJ_DIR = obj
 OBJS = $(SRCS:%.cpp=$(OBJ_DIR)/%.o)

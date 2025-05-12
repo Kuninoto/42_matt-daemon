@@ -1,4 +1,5 @@
 #include <csignal>
+#include <cstdlib>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -10,6 +11,7 @@
 #include <string.h>
 #include <string>
 #include <sys/epoll.h>
+#include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -26,7 +28,7 @@
 namespace fs = std::filesystem;
 
 static constexpr int ROOT_UID = 0;
-static constexpr uint16_t PORT = (uint16_t)4248;
+static constexpr uint16_t PORT = (uint16_t)4242;
 static constexpr const int MAX_CLIENTS = 3;
 static constexpr const int MAX_EVENTS = 10;
 static constexpr const char *PIDFILE_PATH = "/var/run/matt_daemon.pid";
@@ -35,7 +37,7 @@ static constexpr const char *LOGFILE_DIR_PATH = "/var/log/matt_daemon/";
 static constexpr const char *LOGFILE_PATH = "/var/log/matt_daemon/matt_daemon.log";
 
 static constexpr int RECV_BUFFER_SIZE = 1024;
-static constexpr const char *ACK_MSG = "ACK\n";
+static constexpr const char ACK_MSG[] = "ACK\n";
 
 volatile sig_atomic_t g_run = 1; // Global variable to control the main loop
 Tintin_reporter *g_logger = nullptr; // Global pointer to the logger, we need it as global to be usable on signal handlers
@@ -43,10 +45,10 @@ Tintin_reporter *g_logger = nullptr; // Global pointer to the logger, we need it
 /**
  * Run the calling process as a system daemon. `daemon()` replica.
  *
- * @param nochdir Whether to not change daemon's process working directory to `/`
- * @param noclose Whether to not close daemon's process inherited file descriptors
+ * @param nochdir Whether to not change daemon's process working directory to `/`.
+ * @param noclose Whether to not close daemon's process inherited file descriptors.
  *
- * @return `0` on success, `-1` on failure
+ * @return `0` on success, `-1` on failure.
  */
 int ft_daemon(int nochdir, int noclose) {
     // Clean all open file descriptors except standard input, output and error
@@ -81,17 +83,17 @@ int ft_daemon(int nochdir, int noclose) {
     sigemptyset(&sigset);
 
     // Reset all signal handlers to their default and add all signals to a set
-    for (int i = 0; i < SIGRTMAX; i++) {
+    for (int i = 0; i < NSIG; i++) {
         std::signal(i, SIG_DFL);
         sigaddset(&sigset, i);
     }
 
-    // Reset all signals masks
-    sigprocmask(SIG_SETMASK, &sigset, NULL);
-
-    // TODO Sanitize the environment block, removing or resetting
-    // environment variables that might negatively impact daemon
-    // runtime.
+    // Unblock all signals to ensure they're all unblocked on the daemon process
+    if (sigprocmask(SIG_UNBLOCK, &sigset, NULL) == -1) {
+        // TODO handle error better
+        std::cerr << "matt-daemon: sigprocmask() failed" << strerror(errno);
+        return -1;
+    }
 
     // Create a background process
     pid_t pid = fork();
@@ -106,12 +108,11 @@ int ft_daemon(int nochdir, int noclose) {
         exit(EXIT_SUCCESS);
     }
 
-    // Create a SID to detach from any terminal and
-    // create an independent session.
-    pid_t sid = setsid();
-    if (sid == -1) {
-        std::cerr << "matt-daemon: setsid() failed";
+    // Create a session to detach from any terminal and
+    // go to an independent session.
+    if (setsid() == -1) {
         // Failed to create new session
+        std::cerr << "matt-daemon: setsid() failed" << strerror(errno);
         exit(EXIT_FAILURE);
     }
 
@@ -120,7 +121,7 @@ int ft_daemon(int nochdir, int noclose) {
     if (pid == -1) {
         // TODO handle error
         // Failed to create grand-child process
-        std::cerr << "matt-daemon: fork() failed";
+        std::cerr << "matt-daemon: fork() failed" << strerror(errno);
         exit(EXIT_FAILURE);
     }
 
@@ -132,9 +133,10 @@ int ft_daemon(int nochdir, int noclose) {
     // Daemon process (grand-child)...
 
     if (!noclose) {
-        int fd = open("/dev/null", O_WRONLY);
+        int fd = open("/dev/null", O_RDWR);
         if (fd == -1) {
             // TODO handle error
+            return -1;
         }
 
         dup2(fd, STDIN_FILENO);
@@ -173,9 +175,10 @@ int ft_daemon(int nochdir, int noclose) {
 }
 
 // TODO
+// - Refactor main (flock() stuff, etc.)
+
 // - Review the repetitive close of socket fd and removal of pid + lock files;
-// - Review how the error messages are being created i.e. the need to create
-// a std::string to concatenate with strerror().
+// - Review all TODOs
 
 int main(void) {
     if (geteuid() != ROOT_UID) {
@@ -183,34 +186,58 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    if (fs::exists(LOCKFILE_PATH)) {
-        std::cerr << "matt-daemon: notice: there is one instance running already, exiting...\n";
-        return EXIT_SUCCESS;
+    /* // Daemonize
+    if (ft_daemon(0, 0) == -1) {
+        g_logger->fatal("failed to daemonize");
+        return EXIT_FAILURE;
+    } */
+
+    int pidFileFd = open(PIDFILE_PATH, O_CREAT | O_WRONLY);
+    if (pidFileFd == -1) {
+        std::cerr << "matt-daemon: fatal: failed to open pid file: " << strerror(errno);
+        return EXIT_FAILURE;
+    }
+    if (flock(pidFileFd, LOCK_EX | LOCK_NB) == -1) {
+        close(pidFileFd);
+        std::cerr << "matt-daemon: fatal: failed to lock pid file\n";
+        return EXIT_FAILURE;
+    }
+    if (dprintf(pidFileFd, "%d", getpid()) < 0) {
+        close(pidFileFd);
+        std::cerr << "matt-daemon: fatal: failed to write to pid file\n";
+        return EXIT_FAILURE;
     }
 
-    std::ofstream lockfile(LOCKFILE_PATH);
-    if (!lockfile.is_open()) {
-        std::cerr << "matt-daemon: fatal: failed to open lockfile\n";
+    int lockfileFd = open(LOCKFILE_PATH, O_CREAT);
+    if (lockfileFd == -1) {
+        std::cerr << "matt-daemon: fatal: failed to open lock file: " << strerror(errno);
+        close(pidFileFd);
         return EXIT_FAILURE;
+    }
+
+    if (flock(lockfileFd, LOCK_EX | LOCK_NB) == -1) {
+        close(lockfileFd);
+        close(pidFileFd);
+        if (errno == EWOULDBLOCK) {
+            std::cout << "matt-daemon: notice: there is an instance running already, exiting..." << std::endl;
+            return EXIT_SUCCESS;
+        } else {
+            std::cerr << "matt-daemon: fatal: failed to lock pid file\n";
+            return EXIT_FAILURE;
+        }
     }
 
     if (!fs::exists(LOGFILE_DIR_PATH) && !fs::create_directory(LOGFILE_DIR_PATH)) {
         std::cerr << "matt-daemon: fatal: failed to create logfile directory\n";
-        fs::remove(LOCKFILE_PATH);
-        return EXIT_FAILURE;
-    }
-    
-    // Daemonize
-    if (ft_daemon(0, 0) == -1) {
-        g_logger->fatal("failed to daemonize");
-        fs::remove(PIDFILE_PATH);
-        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
 
     Tintin_reporter logger(LOGFILE_PATH);
     if (!logger.isValid()) {
         std::cerr << "matt-daemon: fatal: failed to open logfile\n";
+        close(pidFileFd);
+        close(lockfileFd);
+        fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
     }
@@ -226,6 +253,8 @@ int main(void) {
         setupSignalHandlers();
     } catch (const std::runtime_error& e) {
         g_logger->fatal(std::string("failed to setup signal handlers: ") + e.what());
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -238,6 +267,8 @@ int main(void) {
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
     if (socketfd == -1) {
         g_logger->fatal(std::string("failed to create server's socket: socket() failed: ") + strerror(errno));
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -255,6 +286,8 @@ int main(void) {
     if (bind(socketfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1) {
         g_logger->fatal(std::string("failed to bind to port ") + std::to_string(PORT) + ": " + strerror(errno));
         close(socketfd);
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -267,6 +300,8 @@ int main(void) {
     if (listen(socketfd, MAX_CLIENTS) == -1) {
         g_logger->fatal(std::string("failed to listen on port ") + std::to_string(PORT) + ": " + strerror(errno));
         close(socketfd);
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -280,6 +315,8 @@ int main(void) {
     if (epollfd == -1) {
         g_logger->fatal(std::string("failed to create epoll: epoll_create1() failed: ") + strerror(errno));
         close(socketfd);
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -298,6 +335,8 @@ int main(void) {
         g_logger->fatal(std::string("failed to add server's socket fd to polled fds: epoll_ctl() failed: ") + strerror(errno));
         close(socketfd);
         close(epollfd);
+        close(pidFileFd);
+        close(lockfileFd);
         fs::remove(PIDFILE_PATH);
         fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
@@ -316,6 +355,8 @@ int main(void) {
             g_logger->error(std::string("failed to wait for events on polled fds: epoll_wait() failed: ") + strerror(errno));
             close(socketfd);
             close(epollfd);
+            close(pidFileFd);
+            close(lockfileFd);
             fs::remove(PIDFILE_PATH);
             fs::remove(LOCKFILE_PATH);
             return EXIT_FAILURE;
@@ -410,7 +451,7 @@ int main(void) {
                     g_logger->info("peer has shutdown the connection");
                     if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, &ev) == -1) {
                         g_logger->error(std::string("failed to remove client socket from epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
-                        // TODO
+                        // TODO handle error better
                     }
 
                     delete *clientIt;
@@ -426,7 +467,7 @@ int main(void) {
                     (*clientIt)->msg.append(msg);
 
                     if ((*clientIt)->msg.back() == '\n') {
-                        // Delete newline and log msg
+                        // Delete newline
                         (*clientIt)->msg.pop_back();
 
                         if (!(*clientIt)->msg.empty()) {
@@ -445,7 +486,7 @@ int main(void) {
     }
 
     g_logger->info("quitting");
-   
+
     // Send FIN to clients and delete them from the vector
     for (auto it = clients.begin(); it != clients.end(); ++it) {
         close((*it)->socketfd);
@@ -455,6 +496,8 @@ int main(void) {
     close(socketfd);
     close(epollfd);
 
+    close(pidFileFd);
+    close(lockfileFd);
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
     return EXIT_SUCCESS;

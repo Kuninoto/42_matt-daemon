@@ -5,8 +5,8 @@
 class Client {
 public:
     Client(int socketfd) noexcept;
-    Client(const Client &toCopy) noexcept;
-    Client &operator=(const Client &toCopy) noexcept;
+    Client(const Client &rhs) noexcept;
+    Client &operator=(const Client &rhs) noexcept;
     ~Client(void) noexcept;
 
     int socketfd;

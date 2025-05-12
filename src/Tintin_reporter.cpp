@@ -6,22 +6,23 @@
 #include "Tintin_reporter.hpp"
 
 Tintin_reporter::Tintin_reporter(const std::string &logfilePath) noexcept {
-    this->_isValid = true;
-
+    this->logfilePath = logfilePath;
     this->logfile.open(logfilePath, std::ios::out | std::ios::app);
-    if (!this->logfile.is_open()) {
-        this->_isValid = false;
+    this->_isValid = this->logfile.is_open();
+};
+
+Tintin_reporter::Tintin_reporter(const Tintin_reporter &rhs) noexcept {
+    if (this != &rhs) {
+        *this = rhs;
     }
 };
 
-Tintin_reporter::Tintin_reporter(const Tintin_reporter &toCopy) noexcept {
-    // TODO
-    (void)toCopy;
-};
-
-Tintin_reporter& Tintin_reporter::operator=(const Tintin_reporter &toCopy) noexcept {
-    // TODO
-    (void)toCopy;
+Tintin_reporter &Tintin_reporter::operator=(const Tintin_reporter &rhs) noexcept {
+    if (this != &rhs) {
+        this->logfilePath = rhs.logfilePath;
+        this->logfile.open(rhs.logfilePath, std::ios::out | std::ios::app);
+        this->_isValid = this->logfile.is_open();
+    }
     return *this;
 };
 
@@ -35,27 +36,27 @@ bool Tintin_reporter::isValid(void) noexcept {
 }
 
 /**
- * Debug level logs
+ * Debug level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::debug(const std::string &msg) noexcept {
     this->_log(LogLevel::DEBUG, msg);
 };
 
 /**
- * Log level logs
+ * Log level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::log(const std::string &msg) noexcept {
     this->_log(LogLevel::LOG, msg);
 };
 
 /**
- * Notice level logs
+ * Notice level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::notice(const std::string &msg) noexcept {
     this->_log(LogLevel::NOTICE, msg);
@@ -64,7 +65,7 @@ void Tintin_reporter::notice(const std::string &msg) noexcept {
 /**
  * Info level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::info(const std::string &msg) noexcept {
     this->_log(LogLevel::INFO, msg);
@@ -73,7 +74,7 @@ void Tintin_reporter::info(const std::string &msg) noexcept {
 /**
  * Warn level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::warn(const std::string &msg) noexcept {
     this->_log(LogLevel::WARN, msg);
@@ -82,7 +83,7 @@ void Tintin_reporter::warn(const std::string &msg) noexcept {
 /**
  * Error level logs.
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::error(const std::string &msg) noexcept {
     this->_log(LogLevel::ERROR, msg);
@@ -91,7 +92,7 @@ void Tintin_reporter::error(const std::string &msg) noexcept {
 /**
  * Fatal level logs
  *
- * @param msg The message to log.
+ * @param msg The message to log
  */
 void Tintin_reporter::fatal(const std::string &msg) noexcept {
     this->_log(LogLevel::FATAL, msg);
@@ -100,7 +101,7 @@ void Tintin_reporter::fatal(const std::string &msg) noexcept {
 /**
  * Gets the current timestamp and formats it as day/month/year hour:minute:second.
  *
- * @return A string containing the timestamp.
+ * @return A string containing the timestamp
  */
 const std::string Tintin_reporter::getTimestamp() noexcept {
     auto now = std::chrono::system_clock::now();
@@ -120,8 +121,8 @@ const std::string Tintin_reporter::getTimestamp() noexcept {
  * alongside a timestamp in a predefined format.
  * Example: [25/04/2025 03:05:54] [INFO] matt-daemon: started
  *
- * @param level Log level.
- * @param msg The message to log.
+ * @param level Log level
+ * @param msg The message to log
  */
 void Tintin_reporter::_log(LogLevel level, const std::string &msg) noexcept {
     const char *levelStr;

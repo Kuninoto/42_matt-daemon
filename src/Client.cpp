@@ -10,16 +10,16 @@ Client::Client(int socketfd) noexcept {
     this->socketfd = socketfd;
 }
 
-Client::Client(const Client &toCopy) noexcept {
-    if (this != &toCopy) {
-        *this = toCopy;
+Client::Client(const Client &rhs) noexcept {
+    if (this != &rhs) {
+        *this = rhs;
     }
 };
 
-Client &Client::operator=(const Client &toCopy) noexcept {
-    if (this != &toCopy) {
-        this->socketfd = toCopy.socketfd;
-        this->msg = toCopy.msg;
+Client &Client::operator=(const Client &rhs) noexcept {
+    if (this != &rhs) {
+        this->socketfd = rhs.socketfd;
+        this->msg = rhs.msg;
     }
     return *this;
 };

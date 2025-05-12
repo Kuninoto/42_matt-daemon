@@ -8,6 +8,7 @@ enum class LogLevel { DEBUG, LOG, NOTICE, INFO, WARN, ERROR, FATAL };
 class Tintin_reporter {
     static constexpr const char *LOG_PREFIX = "matt-daemon:";
     std::ofstream logfile;
+    std::string logfilePath;
     bool _isValid;
 
     void _log(LogLevel level, const std::string &msg) noexcept;
@@ -15,8 +16,8 @@ class Tintin_reporter {
 
 public:
     Tintin_reporter(const std::string &logfilePath) noexcept;
-    Tintin_reporter(const Tintin_reporter &toCopy) noexcept;
-    Tintin_reporter &operator=(const Tintin_reporter &toCopy) noexcept;
+    Tintin_reporter(const Tintin_reporter &rhs) noexcept;
+    Tintin_reporter &operator=(const Tintin_reporter &rhs) noexcept;
     ~Tintin_reporter(void) noexcept;
 
     bool isValid(void) noexcept;

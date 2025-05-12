@@ -51,6 +51,12 @@ static constexpr int SIGNALS_TO_HANDLE[] {
     SIGSYS,
 };
 
+/**
+ * Gets a signal name from a signal number.
+ * E.g. 11 -> "SIGSEV" 
+ *
+ * @param signum Signal number.
+ */
 static const char *getSignalName(int signum) noexcept {
     switch (signum) {
         case SIGUSR1:
@@ -123,6 +129,8 @@ static const char *getSignalName(int signum) noexcept {
 
 /**
  * Handles various signals by logging a message to the logfile and ignoring them.
+ * 
+ * @param signum Signal number.
  */
 void badsigHandler(int signum) noexcept {
     (void)signum;
