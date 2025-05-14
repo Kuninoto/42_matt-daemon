@@ -7,6 +7,7 @@ enum class LogLevel { DEBUG, LOG, NOTICE, INFO, WARN, ERROR, FATAL };
 
 class Tintin_reporter {
     static constexpr const char *LOG_PREFIX = "matt-daemon:";
+
     std::ofstream logfile;
     std::string logfilePath;
     bool _isValid;

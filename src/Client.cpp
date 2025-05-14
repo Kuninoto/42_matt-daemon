@@ -1,6 +1,6 @@
-#include <unistd.h>
-#include <string>
 #include <ostream>
+#include <string>
+#include <unistd.h>
 
 #include <iostream>
 
@@ -29,7 +29,6 @@ Client::~Client(void) noexcept {
 };
 
 std::ostream &operator<<(std::ostream &stream, const Client &client) noexcept {
-	stream << "socketfd=" << client.socketfd << "\n"
-           << "msg=" << client.msg;
-	return stream;
+    stream << "socketfd=" << client.socketfd << ", " << "msg=" << client.msg;
+    return stream;
 }

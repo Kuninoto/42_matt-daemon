@@ -7,7 +7,7 @@
 extern volatile sig_atomic_t g_run;
 extern Tintin_reporter *g_logger;
 
-static constexpr int SIGNALS_TO_HANDLE[] {
+static constexpr int SIGNALS_TO_HANDLE[]{
     // User defined signals
     SIGUSR1,
     SIGUSR2,
@@ -53,84 +53,84 @@ static constexpr int SIGNALS_TO_HANDLE[] {
 
 /**
  * Gets a signal name from a signal number.
- * E.g. 11 -> "SIGSEV" 
+ * E.g. 11 -> "SIGSEV"
  *
- * @param signum Signal number.
+ * @param signum Signal number
  */
 static const char *getSignalName(int signum) noexcept {
     switch (signum) {
-        case SIGUSR1:
-            // User defined signals
-            return "SIGUSR1";
-        case SIGUSR2:
-            // User defined signals
-            return "SIGUSR2";
-        case SIGILL:
-            // Illegal CPU instruction due to corruption or something else
-            return "SIGILL";
-        case SIGABRT:
-            // Indicates that the program is behaving abnormally, usually raised by the program itself
-            return "SIGABRT";
-        case SIGBUS:
-            // Bus error due to illegal memory access related issues
-            return "SIGBUS";
-        case SIGSEGV:
-            // When the program tries to access restricted memory areas
-            return "SIGSEGV";
-        case SIGFPE:
-            // Arithmetic exception due to various arithmetic issues such as division by zero, etc...
-            return "SIGFPE";
-        case SIGPIPE:
-            // When the process tries to write to a pipe or a socket which doesn't have a reader
-            return "SIGPIPE";
-        case SIGCHLD:
-            // When child process terminates
-            return "SIGCHLD";
-        case SIGALRM:
-            // Used for timers
-            return "SIGALRM";
-        case SIGCONT:
-            // Continue the execution
-            return "SIGCONT";
-        case SIGTTIN:
-            // Background process tries to read from console STDIN the OS sends this signal
-            return "SIGTTIN";
-        case SIGTTOU:
-            // Background process tries to read from console STDOUT the OS sends this signal
-            return "SIGTTOU";
-        case SIGURG:
-            // When urgent, out of band data arrives to a socket
-            return "SIGURG";
-        case SIGXCPU:
-            // Process has exceeded it's CPU budget
-            return "SIGXCPU";
-        case SIGXFSZ:
-            // Process has exceeded max file size limits
-            return "SIGXFSZ";
-        case SIGVTALRM:
-            // Same as SIGALRM but with CPU time, not real time
-            return "SIGVTALRM";
-        case SIGPROF:
-            // Used for profilers, useful to generate a log file when the profiler asks
-            return "SIGPROF";
-        case SIGWINCH:
-            // Terminal size has changed
-            return "SIGWINCH";
-        case SIGIO:
-            // Async I/O notification
-            return "SIGIO";
-        case SIGSYS:
-            // Bad system call
-            return "SIGSYS";
-        default:
-            return "UNKNOWN";            
+    case SIGUSR1:
+        // User defined signals
+        return "SIGUSR1";
+    case SIGUSR2:
+        // User defined signals
+        return "SIGUSR2";
+    case SIGILL:
+        // Illegal CPU instruction due to corruption or something else
+        return "SIGILL";
+    case SIGABRT:
+        // Indicates that the program is behaving abnormally, usually raised by the program itself
+        return "SIGABRT";
+    case SIGBUS:
+        // Bus error due to illegal memory access related issues
+        return "SIGBUS";
+    case SIGSEGV:
+        // When the program tries to access restricted memory areas
+        return "SIGSEGV";
+    case SIGFPE:
+        // Arithmetic exception due to various arithmetic issues such as division by zero, etc...
+        return "SIGFPE";
+    case SIGPIPE:
+        // When the process tries to write to a pipe or a socket which doesn't have a reader
+        return "SIGPIPE";
+    case SIGCHLD:
+        // When child process terminates
+        return "SIGCHLD";
+    case SIGALRM:
+        // Used for timers
+        return "SIGALRM";
+    case SIGCONT:
+        // Continue the execution
+        return "SIGCONT";
+    case SIGTTIN:
+        // Background process tries to read from console STDIN the OS sends this signal
+        return "SIGTTIN";
+    case SIGTTOU:
+        // Background process tries to read from console STDOUT the OS sends this signal
+        return "SIGTTOU";
+    case SIGURG:
+        // When urgent, out of band data arrives to a socket
+        return "SIGURG";
+    case SIGXCPU:
+        // Process has exceeded it's CPU budget
+        return "SIGXCPU";
+    case SIGXFSZ:
+        // Process has exceeded max file size limits
+        return "SIGXFSZ";
+    case SIGVTALRM:
+        // Same as SIGALRM but with CPU time, not real time
+        return "SIGVTALRM";
+    case SIGPROF:
+        // Used for profilers, useful to generate a log file when the profiler asks
+        return "SIGPROF";
+    case SIGWINCH:
+        // Terminal size has changed
+        return "SIGWINCH";
+    case SIGIO:
+        // Async I/O notification
+        return "SIGIO";
+    case SIGSYS:
+        // Bad system call
+        return "SIGSYS";
+    default:
+        return "UNKNOWN";
     }
 }
 
 /**
  * Handles various signals by logging a message to the logfile and ignoring them.
- * 
- * @param signum Signal number.
+ *
+ * @param signum Signal number
  */
 void badsigHandler(int signum) noexcept {
     (void)signum;
@@ -140,7 +140,7 @@ void badsigHandler(int signum) noexcept {
 /**
  * Handles `SIGINT` by setting `g_run` to `0`.
  *
- * @param signum Signal number.
+ * @param signum Signal number
  */
 void sigintHandler(int signum) noexcept {
     (void)signum;
@@ -151,7 +151,7 @@ void sigintHandler(int signum) noexcept {
 /**
  * Handles `SIGTERM` by setting `g_run` to `0`.
  *
- * @param signum Signal number.
+ * @param signum Signal number
  */
 void sigtermHandler(int signum) noexcept {
     (void)signum;
@@ -162,13 +162,9 @@ void sigtermHandler(int signum) noexcept {
 /**
  * Sets various signal handlers.
  *
- * @throws `std::runtime_error` if setting the handler for any signal failed.
+ * @throws `std::runtime_error` if setting the handler for any signal failed
  */
 void setupSignalHandlers(void) {
-    if (std::signal(SIGINT, sigintHandler) == SIG_ERR) {
-        throw std::runtime_error("failed to setup signal handler for SIGINT");
-    }
-
     if (std::signal(SIGTERM, sigtermHandler) == SIG_ERR) {
         throw std::runtime_error("failed to setup signal handler for SIGTERM");
     }
