@@ -2,8 +2,6 @@
 #include <string>
 #include <unistd.h>
 
-#include <iostream>
-
 #include "Client.hpp"
 
 Client::Client(int socketfd) noexcept {

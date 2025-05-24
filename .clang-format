@@ -15,6 +15,7 @@ AlwaysBreakTemplateDeclarations: Yes
 NamespaceIndentation: None
 AccessModifierOffset: -4
 BreakBeforeBraces: Attach
+ColumnLimit: 0
 
 # Break before binary operators to align conditions at start of lines
 BreakBeforeBinaryOperators: All

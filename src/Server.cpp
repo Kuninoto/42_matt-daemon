@@ -15,12 +15,12 @@
 #include "Tintin_reporter.hpp"
 #include "signal.hpp"
 
-extern Tintin_reporter *g_logger;
+extern std::unique_ptr<Tintin_reporter> g_logger;
 
 volatile sig_atomic_t g_run = 0; // Global variable to control the server loop
 
 /**
- * @throws std::runtime_error
+ * @throws `std::runtime_error`
  */
 Server::Server(void) {
     if (std::signal(SIGINT, sigintHandler) == SIG_ERR) {
@@ -47,7 +47,6 @@ Server::Server(void) {
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(socketfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1) {
-        close(socketfd);
         throw std::runtime_error(std::string("failed to bind to port ") + std::to_string(Server::PORT) + ": " + strerror(errno));
     }
 
@@ -56,7 +55,6 @@ Server::Server(void) {
 #endif
 
     if (listen(socketfd, MAX_CLIENTS) == -1) {
-        close(socketfd);
         throw std::runtime_error(std::string("failed to listen on port ") + std::to_string(Server::PORT) + ": " + strerror(errno));
     }
 
@@ -66,7 +64,6 @@ Server::Server(void) {
 
     int epollfd = epoll_create1(0);
     if (epollfd == -1) {
-        close(socketfd);
         throw std::runtime_error(std::string("failed to create epoll: epoll_create1() failed: ") + strerror(errno));
     }
     this->epollfd = epollfd;
@@ -80,44 +77,22 @@ Server::Server(void) {
     ev.events = EPOLLIN;
     ev.data.fd = socketfd;
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, socketfd, &ev) == -1) {
-        close(socketfd);
-        close(epollfd);
         throw std::runtime_error(std::string("failed to add server's socket fd to polled fds: epoll_ctl() failed: ") + strerror(errno));
     }
 }
 
-Server::Server(Server &rhs) noexcept : epollfd(rhs.epollfd), socketfd(rhs.socketfd) {
-    // Move events
-    // TODO review this memcpy()
-    std::memcpy(this->events.data(), rhs.events.data(), sizeof(rhs.events));
-    // Move clients
-    this->clients = std::move(rhs.clients);
-
-    // Invalidate the moved-from object
-    rhs.socketfd = -1;
-    rhs.epollfd = -1;
+Server::Server(Server &rhs) noexcept {
+    if (this != &rhs) {
+        *this = rhs;
+    }
 }
 
 Server &Server::operator=(Server &rhs) noexcept {
     if (this != &rhs) {
-        // Clean up existing resources
-        if (this->epollfd != -1) {
-            close(this->epollfd);
-        }
-        if (this->socketfd != -1) {
-            close(this->socketfd);
-        }
-
-        // Move resources
         this->socketfd = rhs.socketfd;
         this->epollfd = rhs.epollfd;
-        // TODO review if these memcpy()s will work with std::array
         std::memcpy(this->events.data(), rhs.events.data(), sizeof(rhs.events));
         this->clients = std::move(rhs.clients);
-
-        // Invalidate the moved-from object
-        rhs.socketfd = -1;
-        rhs.epollfd = -1;
     }
     return *this;
 }
@@ -128,6 +103,10 @@ Server::~Server(void) noexcept {
     }
     if (this->socketfd != -1) {
         close(this->socketfd);
+    }
+
+    for (const auto& it : clients) {
+        close(it.get()->socketfd);
     }
 }
 
@@ -149,7 +128,7 @@ void Server::handleNewConnection(void) noexcept {
 
     if (clients.size() == MAX_CLIENTS) {
         if (send(clientSocketFd, CLIENT_REJECTED_MSG, sizeof(CLIENT_REJECTED_MSG), MSG_DONTWAIT) == -1) {
-            g_logger->warn(std::string("send() failed: ") + strerror(errno));
+            g_logger->warn(std::string("failed to send client rejected message: send() failed: ") + strerror(errno));
         }
 
         close(clientSocketFd);
@@ -194,10 +173,6 @@ void Server::handleClientMsg(int clientFd) noexcept {
         this->clients.end(),
         [clientFd](const std::unique_ptr<Client> &client) { return client->socketfd == clientFd; }
     );
-    if (clientIt == this->clients.end()) {
-        g_logger->error("received data from unknown client");
-        return;
-    }
 
     char buf[RECV_BUFFER_SIZE] = {0};
     ssize_t rd = recv(clientFd, buf, sizeof(buf), MSG_DONTWAIT);
@@ -207,16 +182,15 @@ void Server::handleClientMsg(int clientFd) noexcept {
         }
         return;
     } else if (rd == 0) {
+#ifdef _DEBUG
+    std::cout << "Client socketfd=" << clientFd << " closed the connection" << std::endl;
+#endif
         g_logger->info("peer has shutdown the connection");
         if (epoll_ctl(this->epollfd, EPOLL_CTL_DEL, clientFd, nullptr) == -1) {
             g_logger->error(std::string("failed to remove client socket from epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
         }
 
-#ifdef _DEBUG
-    std::cout << "Client socketfd=" << clientFd << "closed the connection" << std::endl;
-#endif
-
-        // Remove client (unique_ptr will automatically delete it)
+        close(clientIt->get()->socketfd);
         this->clients.erase(clientIt);
         return;
     }
@@ -235,11 +209,12 @@ void Server::handleClientMsg(int clientFd) noexcept {
         (*clientIt)->msg.pop_back();
 
         if (!(*clientIt)->msg.empty()) {
-            // If message was more than just a newline, log it
+            // If message has text, log it
             g_logger->log(std::string("received message: ") + (*clientIt)->msg);
             (*clientIt)->msg.clear();
         }
 
+        // Send ACK
         if (send(clientFd, ACK_MSG, sizeof(ACK_MSG), MSG_DONTWAIT) == -1) {
             g_logger->warn(std::string("send() failed: ") + strerror(errno));
         }
@@ -252,11 +227,9 @@ void Server::start(void) noexcept {
     while (g_run) {
         int nfds = epoll_wait(this->epollfd, this->events.data(), Server::MAX_EVENTS, -1);
         if (nfds == -1) {
-            if (errno == EINTR) {
-                // Server was interrupted by a signal, check if we should still run
-                continue;
+            if (errno != EINTR) {
+                g_logger->error(std::string("failed to wait for events on polled fds: epoll_wait() failed: ") + strerror(errno));
             }
-            g_logger->error(std::string("failed to wait for events on polled fds: epoll_wait() failed: ") + strerror(errno));
             continue;
         }
 

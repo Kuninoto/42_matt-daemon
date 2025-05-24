@@ -1,11 +1,12 @@
 #include <csignal>
+#include <memory>
 #include <stdexcept>
 
 #include "Tintin_reporter.hpp"
 #include "signal.hpp"
 
 extern volatile sig_atomic_t g_run;
-extern Tintin_reporter *g_logger;
+extern std::unique_ptr<Tintin_reporter> g_logger;
 
 static constexpr int SIGNALS_TO_HANDLE[]{
     // User defined signals
@@ -13,15 +14,18 @@ static constexpr int SIGNALS_TO_HANDLE[]{
     SIGUSR2,
     // Illegal CPU instruction due to corruption or something else
     SIGILL,
-    // Indicates that the program is behaving abnormally, usually raised by the program itself
+    // Indicates that the program is behaving abnormally, usually raised by the
+    // program itself
     SIGABRT,
     // Bus error due to illegal memory access related issues
     SIGBUS,
     // When the program tries to access restricted memory areas
     SIGSEGV,
-    // Arithmetic exception due to various arithmetic issues such as division by zero, etc...
+    // Arithmetic exception due to various arithmetic issues such as division by
+    // zero, etc...
     SIGFPE,
-    // When the process tries to write to a pipe or a socket which doesn't have a reader
+    // When the process tries to write to a pipe or a socket which doesn't have
+    // a reader
     SIGPIPE,
     // When child process terminates
     SIGCHLD,
@@ -29,9 +33,11 @@ static constexpr int SIGNALS_TO_HANDLE[]{
     SIGALRM,
     // Continue the execution
     SIGCONT,
-    // Background process tries to read from console STDIN the OS sends this signal
+    // Background process tries to read from console STDIN the OS sends this
+    // signal
     SIGTTIN,
-    // Background process tries to read from console STDOUT the OS sends this signal
+    // Background process tries to read from console STDOUT the OS sends this
+    // signal
     SIGTTOU,
     // When urgent, out of band data arrives to a socket
     SIGURG,
@@ -52,8 +58,7 @@ static constexpr int SIGNALS_TO_HANDLE[]{
 };
 
 /**
- * Gets a signal name from a signal number.
- * E.g. 11 -> "SIGSEV"
+ * Gets a signal name for the specified signal number, e.g. 11 -> "SIGSEV".
  *
  * @param signum Signal number
  */
@@ -69,7 +74,8 @@ static const char *getSignalName(int signum) noexcept {
         // Illegal CPU instruction due to corruption or something else
         return "SIGILL";
     case SIGABRT:
-        // Indicates that the program is behaving abnormally, usually raised by the program itself
+        // Indicates that the program is behaving abnormally, usually raised by
+        // the program itself
         return "SIGABRT";
     case SIGBUS:
         // Bus error due to illegal memory access related issues
@@ -78,10 +84,12 @@ static const char *getSignalName(int signum) noexcept {
         // When the program tries to access restricted memory areas
         return "SIGSEGV";
     case SIGFPE:
-        // Arithmetic exception due to various arithmetic issues such as division by zero, etc...
+        // Arithmetic exception due to various arithmetic issues such as
+        // division by zero, etc...
         return "SIGFPE";
     case SIGPIPE:
-        // When the process tries to write to a pipe or a socket which doesn't have a reader
+        // When the process tries to write to a pipe or a socket which doesn't
+        // have a reader
         return "SIGPIPE";
     case SIGCHLD:
         // When child process terminates
@@ -93,10 +101,12 @@ static const char *getSignalName(int signum) noexcept {
         // Continue the execution
         return "SIGCONT";
     case SIGTTIN:
-        // Background process tries to read from console STDIN the OS sends this signal
+        // Background process tries to read from console STDIN the OS sends this
+        // signal
         return "SIGTTIN";
     case SIGTTOU:
-        // Background process tries to read from console STDOUT the OS sends this signal
+        // Background process tries to read from console STDOUT the OS sends
+        // this signal
         return "SIGTTOU";
     case SIGURG:
         // When urgent, out of band data arrives to a socket
@@ -111,7 +121,8 @@ static const char *getSignalName(int signum) noexcept {
         // Same as SIGALRM but with CPU time, not real time
         return "SIGVTALRM";
     case SIGPROF:
-        // Used for profilers, useful to generate a log file when the profiler asks
+        // Used for profilers, useful to generate a log file when the profiler
+        // asks
         return "SIGPROF";
     case SIGWINCH:
         // Terminal size has changed
@@ -128,7 +139,8 @@ static const char *getSignalName(int signum) noexcept {
 }
 
 /**
- * Handles various signals by logging a message to the logfile and ignoring them.
+ * Handles various signals by logging a message to the logfile and ignoring
+ * them.
  *
  * @param signum Signal number
  */

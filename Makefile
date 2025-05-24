@@ -31,14 +31,14 @@ fclean: clean
 
 re: fclean all
 
-fmt:
-	clang-format -i src/*.cpp src/*.hpp
-
 run: re
 	sudo ./$(NAME)
 
 noleaks: re
 	sudo valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes -s ./$(NAME) 
+
+fmt:
+	clang-format -i src/*.cpp src/*.hpp
 
 .PHONY: all $(NAME) $(OBJ_DIR) clean fclean re fmt run
 
