@@ -1,8 +1,9 @@
-#include <ostream>
-#include <string>
+#include "Client.hpp"
+
 #include <unistd.h>
 
-#include "Client.hpp"
+#include <ostream>
+#include <string>
 
 Client::Client(int socketfd) noexcept {
     this->socketfd = socketfd;
@@ -27,6 +28,7 @@ Client::~Client(void) noexcept {
 };
 
 std::ostream &operator<<(std::ostream &stream, const Client &client) noexcept {
-    stream << "socketfd=" << client.socketfd << ", " << "msg=" << client.msg;
+    stream << "socketfd=" << client.socketfd << ", "
+           << "msg=" << client.msg;
     return stream;
 }

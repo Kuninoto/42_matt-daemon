@@ -1,9 +1,10 @@
+#include "signal.hpp"
+
 #include <csignal>
 #include <memory>
 #include <stdexcept>
 
 #include "Tintin_reporter.hpp"
-#include "signal.hpp"
 
 extern volatile sig_atomic_t g_run;
 extern std::unique_ptr<Tintin_reporter> g_logger;
@@ -66,56 +67,57 @@ static constexpr int SIGNALS_TO_HANDLE[]{
  */
 static const char *getSignalName(int signum) noexcept {
     switch (signum) {
-    case SIGUSR1:
-        return "SIGUSR1";
-    case SIGUSR2:
-        return "SIGUSR2";
-    case SIGILL:
-        return "SIGILL";
-    case SIGABRT:
-        return "SIGABRT";
-    case SIGBUS:
-        return "SIGBUS";
-    case SIGSEGV:
-        return "SIGSEGV";
-    case SIGFPE:
-        return "SIGFPE";
-    case SIGPIPE:
-        return "SIGPIPE";
-    case SIGCHLD:
-        return "SIGCHLD";
-    case SIGALRM:
-        return "SIGALRM";
-    case SIGCONT:
-        return "SIGCONT";
-    case SIGTTIN:
-        return "SIGTTIN";
-    case SIGTTOU:
-        return "SIGTTOU";
-    case SIGURG:
-        return "SIGURG";
-    case SIGXCPU:
-        return "SIGXCPU";
-    case SIGXFSZ:
-        return "SIGXFSZ";
-    case SIGVTALRM:
-        return "SIGVTALRM";
-    case SIGPROF:
-        return "SIGPROF";
-    case SIGWINCH:
-        return "SIGWINCH";
-    case SIGIO:
-        return "SIGIO";
-    case SIGSYS:
-        return "SIGSYS";
-    default:
-        return "UNKNOWN";
+        case SIGUSR1:
+            return "SIGUSR1";
+        case SIGUSR2:
+            return "SIGUSR2";
+        case SIGILL:
+            return "SIGILL";
+        case SIGABRT:
+            return "SIGABRT";
+        case SIGBUS:
+            return "SIGBUS";
+        case SIGSEGV:
+            return "SIGSEGV";
+        case SIGFPE:
+            return "SIGFPE";
+        case SIGPIPE:
+            return "SIGPIPE";
+        case SIGCHLD:
+            return "SIGCHLD";
+        case SIGALRM:
+            return "SIGALRM";
+        case SIGCONT:
+            return "SIGCONT";
+        case SIGTTIN:
+            return "SIGTTIN";
+        case SIGTTOU:
+            return "SIGTTOU";
+        case SIGURG:
+            return "SIGURG";
+        case SIGXCPU:
+            return "SIGXCPU";
+        case SIGXFSZ:
+            return "SIGXFSZ";
+        case SIGVTALRM:
+            return "SIGVTALRM";
+        case SIGPROF:
+            return "SIGPROF";
+        case SIGWINCH:
+            return "SIGWINCH";
+        case SIGIO:
+            return "SIGIO";
+        case SIGSYS:
+            return "SIGSYS";
+        default:
+            return "UNKNOWN";
     }
 }
 
 /**
  * Handles various signals by logging a message to the logfile and,
- * in case of `SIGINT` or `SIGTERM`, setting `g_run` to `0` or ignore.
+ * in case of `SIGINT` or `SIGTERM`, setting `g_run` to `0`. Otherwise
+ * the signal is ignored.
  *
  * @param signum Signal number
  */

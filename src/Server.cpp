@@ -1,23 +1,25 @@
-#include <algorithm>
-#include <csignal>
-#include <cstring>
+#include "Server.hpp"
+
 #include <fcntl.h>
-#include <iostream>
-#include <memory>
 #include <netinet/in.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <csignal>
+#include <cstring>
+#include <iostream>
+#include <memory>
 #include <vector>
 
-#include "Server.hpp"
 #include "Tintin_reporter.hpp"
 #include "signal.hpp"
 
 extern std::unique_ptr<Tintin_reporter> g_logger;
 
-volatile sig_atomic_t g_run = 0; // Global variable to control the server loop
+volatile sig_atomic_t g_run = 0;  // Global variable to control the server loop
 
 /**
  * @throws `std::runtime_error`
@@ -97,7 +99,7 @@ Server::~Server(void) noexcept {
     close(this->epollfd);
     close(this->socketfd);
 
-    for (const auto& it : clients) {
+    for (const auto &it : clients) {
         close(it.get()->socketfd);
     }
 }
@@ -163,8 +165,7 @@ void Server::handleClientMsg(int clientFd) noexcept {
     auto clientIt = std::find_if(
         this->clients.begin(),
         this->clients.end(),
-        [clientFd](const std::unique_ptr<Client> &client) { return client->socketfd == clientFd; }
-    );
+        [clientFd](const std::unique_ptr<Client> &client) { return client->socketfd == clientFd; });
 
     char buf[RECV_BUFFER_SIZE] = {0};
     ssize_t rd = recv(clientFd, buf, sizeof(buf), MSG_DONTWAIT);
@@ -175,7 +176,7 @@ void Server::handleClientMsg(int clientFd) noexcept {
         return;
     } else if (rd == 0) {
 #ifdef _DEBUG
-    std::cout << "Client socketfd=" << clientFd << " closed the connection" << std::endl;
+        std::cout << "Client socketfd=" << clientFd << " closed the connection" << std::endl;
 #endif
         g_logger->info("peer has shutdown the connection");
         if (epoll_ctl(this->epollfd, EPOLL_CTL_DEL, clientFd, nullptr) == -1) {

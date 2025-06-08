@@ -1,15 +1,16 @@
-#include <csignal>
-#include <cstdlib>
 #include <dirent.h>
 #include <errno.h>
-#include <filesystem>
-#include <iostream>
-#include <memory>
 #include <string.h>
-#include <string>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+
+#include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <string>
 
 #include "Client.hpp"
 #include "Server.hpp"
@@ -25,7 +26,7 @@ static constexpr const char *LOCKFILE_PATH = "/var/lock/matt_daemon.lock";
 static constexpr const char *LOGFILE_DIR_PATH = "/var/log/matt_daemon/";
 static constexpr const char *LOGFILE_PATH = "/var/log/matt_daemon/matt_daemon.log";
 
-std::unique_ptr<Tintin_reporter> g_logger = nullptr; // Global pointer to the logger, we need it as global to be usable on signal handlers
+std::unique_ptr<Tintin_reporter> g_logger = nullptr;  // Global pointer to the logger, we need it as global to be usable on signal handlers
 
 /**
  * Run the calling process as a system daemon - `daemon()` replica.
@@ -73,7 +74,7 @@ void ft_daemon(int nochdir, int noclose) {
     }
 
     // Reset all signal handlers to their default
-#ifdef NSIG // Not every libc implementation defines NSIG
+#ifdef NSIG  // Not every libc implementation defines NSIG
     for (int i = 1; i < NSIG; i++) {
         if (i != SIGKILL && i != SIGSTOP) {
             std::signal(i, SIG_DFL);
@@ -204,7 +205,7 @@ int main(void) {
             return EXIT_FAILURE;
         }
     }
-    
+
     g_logger->info("started");
 
 #ifdef _DEBUG
@@ -236,7 +237,7 @@ int main(void) {
 
     g_logger->notice("quitting...");
 
-    close(lockfileFd); // Closing a locked file will automatically release the lock - see https://www.man7.org/linux/man-pages/man2/flock.2.html
+    close(lockfileFd);  // Closing a locked file will automatically release the lock - see https://www.man7.org/linux/man-pages/man2/flock.2.html
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
     return exitStatus;

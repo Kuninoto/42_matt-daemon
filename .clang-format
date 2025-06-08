@@ -1,6 +1,6 @@
 # General language settings
 Language: Cpp
-BasedOnStyle: LLVM
+BasedOnStyle: Google
 
 # Indentation and spacing
 IndentWidth: 4
