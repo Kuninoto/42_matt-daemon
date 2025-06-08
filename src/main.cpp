@@ -1,15 +1,16 @@
-#include <csignal>
-#include <cstdlib>
 #include <dirent.h>
 #include <errno.h>
-#include <filesystem>
-#include <iostream>
-#include <memory>
 #include <string.h>
-#include <string>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+
+#include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <string>
 
 #include "Client.hpp"
 #include "Server.hpp"
@@ -25,13 +26,13 @@ static constexpr const char *LOCKFILE_PATH = "/var/lock/matt_daemon.lock";
 static constexpr const char *LOGFILE_DIR_PATH = "/var/log/matt_daemon/";
 static constexpr const char *LOGFILE_PATH = "/var/log/matt_daemon/matt_daemon.log";
 
-std::unique_ptr<Tintin_reporter> g_logger = nullptr; // Global pointer to the logger, we need it as global to be usable on signal handlers
+std::unique_ptr<Tintin_reporter> g_logger = nullptr;  // Global pointer to the logger, we need it as global to be usable on signal handlers
 
 /**
- * Run the calling process as a system daemon. `daemon()` replica.
+ * Run the calling process as a system daemon - `daemon()` replica.
  *
- * @param nochdir Whether to not change daemon's process working directory to `/`
- * @param noclose Whether to not close daemon's process inherited file descriptors
+ * @param nochdir If `nochdir` is zero, changes the process's current working directory to the root directory ("/")
+ * @param noclose If `noclose` is zero, redirects standard input, standard output and standard error to /dev/null
  *
  * @throws `std::runtime_exception`
  *
@@ -43,7 +44,6 @@ void ft_daemon(int nochdir, int noclose) {
     int maxFds = 0;
 
     DIR *dir = opendir("/proc/self/fd");
-
     if (dir == NULL) {
         // If opening /proc/self/fd failed, fallback to getrlimit()
         struct rlimit rlim;
@@ -74,7 +74,7 @@ void ft_daemon(int nochdir, int noclose) {
     }
 
     // Reset all signal handlers to their default
-#ifdef NSIG // Not every libc implementation defines NSIG
+#ifdef NSIG  // Not every libc implementation defines NSIG
     for (int i = 1; i < NSIG; i++) {
         if (i != SIGKILL && i != SIGSTOP) {
             std::signal(i, SIG_DFL);
@@ -116,7 +116,7 @@ void ft_daemon(int nochdir, int noclose) {
     pid = fork();
     if (pid == -1) {
         // Failed to create grand-child process
-        throw new std::runtime_error(std::string("failed to gramd-child process: fork() failed: ") + strerror(errno));
+        throw new std::runtime_error(std::string("failed to create grand-child process: fork() failed: ") + strerror(errno));
     }
 
     if (pid != 0) {
@@ -153,7 +153,7 @@ void ft_daemon(int nochdir, int noclose) {
     }
 
     // Write the daemon PID to pidfile
-    int pidFileFd = open(PIDFILE_PATH, O_CREAT | O_EXCL | O_WRONLY, S_IRUSR | S_IWUSR);
+    int pidFileFd = open(PIDFILE_PATH, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
     if (pidFileFd == -1) {
         throw std::runtime_error(std::string("failed to open pid file: open() failed: ") + strerror(errno));
     }
@@ -172,26 +172,10 @@ int main(void) {
 
     // Daemonize
     try {
-        ft_daemon(0, 0);
+        ft_daemon(0, 1);
     } catch (const std::runtime_error &e) {
-        std::cerr << "matt-daemon: fatal: failed to daemonize, ft_daemon() failed: " << e.what() << "\n";
+        std::cerr << "matt-daemon: fatal: failed to daemonize: ft_daemon() failed: " << e.what();
         return EXIT_FAILURE;
-    }
-
-    int lockfileFd = open(LOCKFILE_PATH, O_CREAT);
-    if (lockfileFd == -1) {
-        std::cerr << "matt-daemon: fatal: failed to open lock file: " << strerror(errno) << "\n";
-        return EXIT_FAILURE;
-    }
-    if (flock(lockfileFd, LOCK_EX | LOCK_NB) == -1) {
-        close(lockfileFd);
-        if (errno == EWOULDBLOCK) {
-            std::cout << "matt-daemon: notice: there is an instance running already, exiting..." << std::endl;
-            return EXIT_SUCCESS;
-        } else {
-            std::cerr << "matt-daemon: fatal: failed to lock pid file\n";
-            return EXIT_FAILURE;
-        }
     }
 
     if (!fs::exists(LOGFILE_DIR_PATH) && !fs::create_directory(LOGFILE_DIR_PATH)) {
@@ -202,10 +186,24 @@ int main(void) {
     g_logger = std::make_unique<Tintin_reporter>(LOGFILE_PATH);
     if (!g_logger->isValid()) {
         std::cerr << "matt-daemon: fatal: failed to open logfile\n";
-        close(lockfileFd);
-        fs::remove(PIDFILE_PATH);
-        fs::remove(LOCKFILE_PATH);
         return EXIT_FAILURE;
+    }
+
+    int lockfileFd = open(LOCKFILE_PATH, O_CREAT, 0400);
+    if (lockfileFd == -1) {
+        g_logger->fatal(std::string("failed to open lock file: ") + strerror(errno));
+        return EXIT_FAILURE;
+    }
+    if (flock(lockfileFd, LOCK_EX | LOCK_NB) == -1) {
+        if (errno == EWOULDBLOCK) {
+            g_logger->notice("there is an instance running already, exiting...");
+            close(lockfileFd);
+            return EXIT_SUCCESS;
+        } else {
+            g_logger->fatal("failed to lock file");
+            close(lockfileFd);
+            return EXIT_FAILURE;
+        }
     }
 
     g_logger->info("started");
@@ -232,14 +230,14 @@ int main(void) {
     try {
         Server server = Server();
         server.start();
-    } catch (const std::exception &e) {
+    } catch (const std::runtime_error &e) {
         g_logger->fatal(std::string("failed to start server: ") + e.what());
         exitStatus = EXIT_FAILURE;
     }
 
     g_logger->notice("quitting...");
 
-    close(lockfileFd);
+    close(lockfileFd);  // Closing a locked file will automatically release the lock - see https://www.man7.org/linux/man-pages/man2/flock.2.html
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
     return exitStatus;

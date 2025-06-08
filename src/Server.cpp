@@ -1,32 +1,30 @@
-#include <algorithm>
-#include <csignal>
-#include <cstring>
+#include "Server.hpp"
+
 #include <fcntl.h>
-#include <iostream>
-#include <memory>
 #include <netinet/in.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <csignal>
+#include <cstring>
+#include <iostream>
+#include <memory>
 #include <vector>
 
-#include "Server.hpp"
 #include "Tintin_reporter.hpp"
 #include "signal.hpp"
 
 extern std::unique_ptr<Tintin_reporter> g_logger;
 
-volatile sig_atomic_t g_run = 0; // Global variable to control the server loop
+volatile sig_atomic_t g_run = 0;  // Global variable to control the server loop
 
 /**
  * @throws `std::runtime_error`
  */
 Server::Server(void) {
-    if (std::signal(SIGINT, sigintHandler) == SIG_ERR) {
-        throw std::runtime_error("failed to setup signal handler for SIGINT");
-    }
-
 #ifdef _DEBUG
     std::cout << "Creating server's socket..." << std::endl;
 #endif
@@ -77,7 +75,7 @@ Server::Server(void) {
     ev.events = EPOLLIN;
     ev.data.fd = socketfd;
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, socketfd, &ev) == -1) {
-        throw std::runtime_error(std::string("failed to add server's socket fd to polled fds: epoll_ctl() failed: ") + strerror(errno));
+        throw std::runtime_error(std::string("failed to add server's socket fd to epoll()'s interest list: epoll_ctl() failed: ") + strerror(errno));
     }
 }
 
@@ -98,14 +96,10 @@ Server &Server::operator=(Server &rhs) noexcept {
 }
 
 Server::~Server(void) noexcept {
-    if (this->epollfd != -1) {
-        close(this->epollfd);
-    }
-    if (this->socketfd != -1) {
-        close(this->socketfd);
-    }
+    close(this->epollfd);
+    close(this->socketfd);
 
-    for (const auto& it : clients) {
+    for (const auto &it : clients) {
         close(it.get()->socketfd);
     }
 }
@@ -155,7 +149,7 @@ void Server::handleNewConnection(void) noexcept {
     ev.data.fd = clientSocketFd;
     if (epoll_ctl(this->epollfd, EPOLL_CTL_ADD, clientSocketFd, &ev) == -1) {
         close(clientSocketFd);
-        g_logger->error(std::string("failed to add client's socket to epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
+        g_logger->error(std::string("failed to add client's socket to epoll()'s interest list: epoll_ctl() failed: ") + strerror(errno));
         return;
     }
 
@@ -171,8 +165,7 @@ void Server::handleClientMsg(int clientFd) noexcept {
     auto clientIt = std::find_if(
         this->clients.begin(),
         this->clients.end(),
-        [clientFd](const std::unique_ptr<Client> &client) { return client->socketfd == clientFd; }
-    );
+        [clientFd](const std::unique_ptr<Client> &client) { return client->socketfd == clientFd; });
 
     char buf[RECV_BUFFER_SIZE] = {0};
     ssize_t rd = recv(clientFd, buf, sizeof(buf), MSG_DONTWAIT);
@@ -183,11 +176,11 @@ void Server::handleClientMsg(int clientFd) noexcept {
         return;
     } else if (rd == 0) {
 #ifdef _DEBUG
-    std::cout << "Client socketfd=" << clientFd << " closed the connection" << std::endl;
+        std::cout << "Client socketfd=" << clientFd << " closed the connection" << std::endl;
 #endif
         g_logger->info("peer has shutdown the connection");
         if (epoll_ctl(this->epollfd, EPOLL_CTL_DEL, clientFd, nullptr) == -1) {
-            g_logger->error(std::string("failed to remove client socket from epoll() interest list: epoll_ctl() failed: ") + strerror(errno));
+            g_logger->error(std::string("failed to remove client socket from epoll()'s interest list: epoll_ctl() failed: ") + strerror(errno));
         }
 
         close(clientIt->get()->socketfd);
@@ -238,7 +231,7 @@ void Server::start(void) noexcept {
                 // Server's socket fd has events: new connections coming in
                 handleNewConnection();
             } else {
-                // One of the clients fds has events: message coming in
+                // One of the clients' fds has events: message coming in
                 handleClientMsg(this->events[n].data.fd);
             }
         }

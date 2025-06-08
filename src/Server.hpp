@@ -1,9 +1,10 @@
 #pragma once
 
+#include <sys/epoll.h>
+
 #include <array>
 #include <memory>
 #include <ostream>
-#include <sys/epoll.h>
 #include <vector>
 
 #include "Client.hpp"
