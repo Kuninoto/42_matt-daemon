@@ -1,5 +1,5 @@
 CC = c++
-CFLAGS = -Wall -Wextra -Werror -std=c++20 -g -D _DEBUG=1 # -fsanitize=address
+CFLAGS = -Wall -Wextra -Werror -std=c++20 # -D _DEBUG=1 -g -fsanitize=address
 RM = rm -rf
 
 NAME = MattDaemon
@@ -32,6 +32,7 @@ fclean: clean
 re: fclean all
 
 run: re
+	$(info Running $(NAME)...)
 	sudo ./$(NAME)
 
 noleaks: re

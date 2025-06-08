@@ -2,13 +2,14 @@
 
 ## Description  
 
-Write a simple UNIX daemon for System-V systems (using the double `fork()` technique) C++20
+Simple UNIX daemon for System-V based systems (using the double `fork()` technique).
 
 ### Demonstration  
 
 ![matt-daemon demonstration](./extras/demonstration.gif)
 
 ### Installing and running  
+
 1. Install required dependencies
 ```bash
 sudo apt-get install c++ make
@@ -19,19 +20,18 @@ sudo apt-get install c++ make
 git clone https://github.com/Kuninoto/42_matt-daemon matt-daemon && cd matt-daemon
 ```
 
-3. Build and run (requires root privileges to TODO)
+3. Build and run (requires root privileges to create folders and files under `/var/log` and `/var/lock`)
 ```bash
-make && sudo ./matt-daemon
+sudo make run
 ```
 
 ### Useful links  
+
 [Creating a daemon in Linux](https://stackoverflow.com/questions/17954432/creating-a-daemon-in-linux)  
 [How to create a daemon in Linux](https://www.makeuseof.com/create-daemons-on-linux/)  
 [What is a daemon - definition](https://www.makeuseof.com/what-is-a-daemon-definition/)  
 [daemon man](https://man7.org/linux/man-pages/man7/daemon.7.html)  
 [setsid() man](https://linux.die.net/man/2/setsid)  
-
-TO READ  
 [What is the reason for performing a double fork() when creating a daemon](https://stackoverflow.com/questions/881388/what-is-the-reason-for-performing-a-double-fork-when-creating-a-daemon)  
 [Double fork() - why?](https://unix.stackexchange.com/questions/715248/double-fork-why)  
 [Why fork() twice](https://stackoverflow.com/questions/10932592/why-fork-twice/16655124#16655124)  
