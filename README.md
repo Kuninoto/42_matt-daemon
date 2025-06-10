@@ -1,5 +1,8 @@
 # 42_matt-daemon (42Porto - Advanced Cursus)  
 
+#### Done in collaboration with  
+[Nuno Machado](https://github.com/nunom4chado)  
+
 ## Description  
 
 Simple UNIX daemon for System-V based systems (using the double `fork()` technique).
