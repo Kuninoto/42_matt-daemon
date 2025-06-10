@@ -13,6 +13,8 @@ static constexpr int SIGNALS_TO_HANDLE[]{
     // User defined signals
     SIGUSR1,
     SIGUSR2,
+    // Interrupt a process
+    SIGINT,
     // Illegal CPU instruction due to corruption or something else
     SIGILL,
     // Indicates that the program is behaving abnormally, usually raised by the
@@ -71,6 +73,8 @@ static const char *getSignalName(int signum) noexcept {
             return "SIGUSR1";
         case SIGUSR2:
             return "SIGUSR2";
+        case SIGINT:
+            return "SIGINT";
         case SIGILL:
             return "SIGILL";
         case SIGABRT:
@@ -83,6 +87,8 @@ static const char *getSignalName(int signum) noexcept {
             return "SIGFPE";
         case SIGPIPE:
             return "SIGPIPE";
+        case SIGTERM:
+            return "SIGTERM";
         case SIGCHLD:
             return "SIGCHLD";
         case SIGALRM:
