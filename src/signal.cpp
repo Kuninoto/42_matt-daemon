@@ -10,51 +10,40 @@ extern volatile sig_atomic_t g_run;
 extern std::unique_ptr<Tintin_reporter> g_logger;
 
 static constexpr int SIGNALS_TO_HANDLE[]{
+    // User’s terminal is disconnected (daemons repurpose this to reload configurations)
+    SIGHUP,
+    // External interrupt
+    SIGINT,
+    // Used by debuggers
+    SIGTRAP,
     // User defined signals
     SIGUSR1,
     SIGUSR2,
-    // Interrupt a process
-    SIGINT,
-    // Illegal CPU instruction due to corruption or something else
-    SIGILL,
-    // Indicates that the program is behaving abnormally, usually raised by the
-    // program itself
-    SIGABRT,
-    // Bus error due to illegal memory access related issues
-    SIGBUS,
-    // When the program tries to access restricted memory areas
-    SIGSEGV,
-    // Arithmetic exception due to various arithmetic issues such as division by
-    // zero, etc...
-    SIGFPE,
-    // When the process tries to write to a pipe or a socket which doesn't have
-    // a reader
-    SIGPIPE,
     // Termination request
     SIGTERM,
-    // When child process terminates
+    // Signal sent to parent process when child process is stopped
     SIGCHLD,
-    // Used for timers
+    // Expiration of timer that measures real or clock time, used by function like alarm()
     SIGALRM,
     // Continue the execution
     SIGCONT,
-    // Background process tries to read from console STDIN the OS sends this
-    // signal
+    // Interactive stop request
+    SIGTSTP,
+    // Reading from terminal is not possible
     SIGTTIN,
-    // Background process tries to read from console STDOUT the OS sends this
-    // signal
+    // Writing to terminal is not possible
     SIGTTOU,
     // When urgent, out of band data arrives to a socket
     SIGURG,
-    // Process has exceeded it's CPU budget
+    // CPU time limit exceeded
     SIGXCPU,
-    // Process has exceeded max file size limits
+    // File size limit exceeded
     SIGXFSZ,
     // Same as SIGALRM but with CPU time, not real time
     SIGVTALRM,
     // Used for profilers, useful to generate a log file when the profiler asks
     SIGPROF,
-    // Terminal size has changed
+    // Window has been resized
     SIGWINCH,
     // Async I/O notification
     SIGIO,
@@ -69,24 +58,16 @@ static constexpr int SIGNALS_TO_HANDLE[]{
  */
 static const char *getSignalName(int signum) noexcept {
     switch (signum) {
+        case SIGHUP:
+            return "SIGHUP";
+        case SIGINT:
+            return "SIGINT";
+        case SIGTRAP:
+            return "SIGTRAP";
         case SIGUSR1:
             return "SIGUSR1";
         case SIGUSR2:
             return "SIGUSR2";
-        case SIGINT:
-            return "SIGINT";
-        case SIGILL:
-            return "SIGILL";
-        case SIGABRT:
-            return "SIGABRT";
-        case SIGBUS:
-            return "SIGBUS";
-        case SIGSEGV:
-            return "SIGSEGV";
-        case SIGFPE:
-            return "SIGFPE";
-        case SIGPIPE:
-            return "SIGPIPE";
         case SIGTERM:
             return "SIGTERM";
         case SIGCHLD:
@@ -95,6 +76,8 @@ static const char *getSignalName(int signum) noexcept {
             return "SIGALRM";
         case SIGCONT:
             return "SIGCONT";
+        case SIGTSTP:
+            return "SIGTSTP";
         case SIGTTIN:
             return "SIGTTIN";
         case SIGTTOU:

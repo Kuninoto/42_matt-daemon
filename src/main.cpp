@@ -237,7 +237,7 @@ int main(void) {
 
     g_logger->notice("quitting...");
 
-    close(lockfileFd);  // Closing a locked file will automatically release the lock - see https://www.man7.org/linux/man-pages/man2/flock.2.html
+    close(lockfileFd);  // Closing all fds of a locked file will automatically release the flock()'s lock - see https://www.man7.org/linux/man-pages/man2/flock.2.html
     fs::remove(PIDFILE_PATH);
     fs::remove(LOCKFILE_PATH);
     return exitStatus;

@@ -1,15 +1,19 @@
 # 42_matt-daemon (42Porto - Advanced Cursus)  
 
-#### Done in collaboration with  
-[Nuno Machado](https://github.com/nunom4chado)  
+#### Done in collaboration with [Nuno Machado](https://github.com/nunom4chado)  
 
-## Description  
+### Description  
 
-Simple UNIX daemon for System-V based systems (using the double `fork()` technique).
+Simple UNIX daemon for System-V based systems (using the [double fork() technique](https://0xjet.github.io/3OHA/2022/04/11/post.html)).
 
 ### Demonstration  
 
 ![matt-daemon demonstration](./extras/demonstration.gif)
+
+### Features
+- Handles 3 simultaneous clients sending messages to register on the logfile;
+- "quit" command to close the daemon;
+- Lock and PID file management.
 
 ### Installing and running  
 
